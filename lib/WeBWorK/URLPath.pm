@@ -103,6 +103,7 @@ Note:  Only database keyfield values can be used as path parameters.
  instructor_get_library_set_problems /$courseID/instructor/GetLibrarySetProblems/
  instructor_config                   /$courseID/instructor/config/
  instructor_compare                  /$courseID/instructor/compare/
+ instructor_similar                  /$courseID/instructor/similar/
  
  instructor_problem_editor           /$courseID/instructor/pgProblemEditor/
  instructor_problem_editor_withset   /$courseID/instructor/pgProblemEditor/$setID/
@@ -348,6 +349,7 @@ our %pathTypes = (
 			instructor_problem_editor instructor_problem_editor2 instructor_problem_editor3
 			instructor_set_maker instructor_set_maker2 instructor_set_maker3 instructor_set_maker_no_js
 			instructor_get_target_set_problems instructor_get_library_set_problems instructor_compare
+			instructor_similar
 			instructor_config
 			instructor_scoring instructor_scoring_download instructor_mail_merge
 			instructor_preflight instructor_statistics
@@ -498,6 +500,16 @@ our %pathTypes = (
 		#produce => 'comp/',
 		produce => 'compare/',
 		display => 'WeBWorK::ContentGenerator::Instructor::Compare',
+	},
+	instructor_similar => {
+		name    => x('Lookup Similar'),
+		parent  => 'instructor_tools',
+		kids    => [ qw// ],
+		match   => qr|^similar/|,
+		capture => [ qw// ],
+		#produce => 'comp/',
+		produce => 'similar/',
+		display => 'WeBWorK::ContentGenerator::Instructor::Similar',
 	},
 	instructor_set_maker => {
 		name    => x('Library Browser'),

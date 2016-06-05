@@ -40,6 +40,7 @@ use File::Find;
 use MIME::Base64 qw(encode_base64);
 
 require WeBWorK::Utils::ListingDB;
+require WeBWorK::ContentGenerator::Instructor::Similar;
 
 # we use x to mark strings for maketext
 use constant SHOW_HINTS_DEFAULT => 0;
@@ -814,6 +815,19 @@ sub browse_setdef_panel {
 	));
 }
 
+sub browse_similar_problems{
+	my $self = shift;
+	my $r = $self->r;
+	my $ce = $r->ce;
+	my $the_main_file = shift;
+	$the_main_file = '' unless (defined $the_main_file);
+
+	my $view_problem_line = view_problems_line('view_similar_problems', $r->maketext('View Similar Problems'), $self->r);
+	
+	print CGI::Tr(CGI::td({-class=>"InfoPanel", -align=>"left"}, "Main file: ".$the_main_file, CGI::br(),$view_problem_line ));
+	print CGI::hidden(-name=>'main_problem_file', -value=>$the_main_file,-override=>1);
+}
+
 sub make_top_row {
 	my $self = shift;
 	my $r = $self->r;
@@ -900,6 +914,8 @@ sub make_top_row {
 		$self->browse_library_panel();
 	} elsif ($browse_which eq 'browse_setdefs') {
 		$self->browse_setdef_panel($library_selected);
+	} elsif ($browse_which eq 'view_similar_problems') {
+		$self->browse_similar_problems($r->param('main_problem_file'));
 	} else { ## handle other problem libraries
 		$self->browse_local_panel($library_selected,$browse_which);
 	}
@@ -953,6 +969,90 @@ sub make_top_row {
 		    #            -value=>"Rerandomize"),
 	#)), 
 	CGI::end_table()));
+}
+
+sub form_similarity_data{
+		my $self = shift;
+		my $hr_similar_files = shift;
+		my $sourceFileName = shift;
+		my $cnt = shift;
+		my $lineTitle = shift;
+		my $mode = shift;
+		$mode = 0 unless (defined $mode);
+
+		my $r = $self->r;
+		my $urlpath = $self->r->urlpath;
+		
+		my $similar_files = [];
+		my $extra = 0;
+		my $count = 0;
+		my $similar_ending="";
+		
+		if ($hr_similar_files->{status} == -1){
+			# database tables were not found
+			$similar_ending = "No similarity database tables were found!"
+		} elsif ($hr_similar_files->{status} == -2){
+			# the file was not found in the database 
+			$similar_ending = "File was not found in similarity databse!"
+		} elsif ($hr_similar_files->{status} == 0){
+			# normal status
+			$similar_files = $hr_similar_files->{data};
+			$count = $hr_similar_files->{count};
+			$extra = $count - 5 if ($count > 5);
+			$similar_ending = ", and ". $extra . " more." if ($extra > 0);
+			$similar_ending = "none!" if ($count == 0);
+			if (scalar @$similar_files > 5){
+				$similar_files = [ splice(@$similar_files, 0, 5) ];
+			}
+		}
+		
+		my @similar_files_data;
+
+		for my $sim (@{$similar_files}){
+			push(@similar_files_data, '<span title="'.$sim->[1].'">'.(sprintf("%6.2f", $sim->[0]/100)) .'%</span>'); 
+		}
+		my $similarity_link = 
+		CGI::a(
+			{
+			href=>$self->systemLink(
+			$urlpath->newFromModule(
+				"WeBWorK::ContentGenerator::Instructor::SetMaker",
+				$r,
+				courseID=>$urlpath->arg("courseID")
+				),
+			params=>{
+				effectiveUser => scalar($self->r->param('user')),
+				main_problem_file => $sourceFileName,
+				view_similar_problems => "yes",
+				browse_which => "view_similar_problems",
+				mydisplayMode => undef,
+				showHints => undef,
+				showSolutions => undef,
+				sim_depth => $mode,
+				}
+			),
+			target=>"Similar_view", 
+				title=>"View Similar",
+				id=>"linksimilar$cnt",
+				style=>"text-decoration: none"
+			},
+			$lineTitle);
+			
+		my $diffs_link = CGI::a({href=>$self->systemLink(
+			$urlpath->newFromModule(
+			"WeBWorK::ContentGenerator::Instructor::Similar", 
+			$r, 
+			courseID =>$urlpath->arg("courseID") 
+			),
+				params =>{
+					effectiveUser => scalar($self->r->param('user')),
+					path => $sourceFileName,
+					sim_depth => $mode,
+				}
+			), target=>"WW_Sim_View", 
+				title=>"Files similar to $sourceFileName",
+				style=>"text-decoration: none"}, 'Show code diffs.');
+		return $similarity_link." ".join(", ",@similar_files_data).$similar_ending." ".$diffs_link;
 }
 
 sub make_data_row {
@@ -1060,9 +1160,40 @@ sub make_data_row {
 		$tagwidget .= CGI::start_script({type=>"text/javascript"}). "mytw$cnt = new tag_widget('$tagid','$sourceFilePath')".CGI::end_script();
 	}
 
+	# similar files info
+	my $similaritywidget='';
+	
+	if ($ce->{problemLibrary}{showSimilar}){
+		my $similarityid="similarity".$cnt;
+		my @simParams = ();
+		my $hr_similar_files = WeBWorK::ContentGenerator::Instructor::Similar::getTopFiveSimilarFiles($r->ce, $sourceFileName);
+		my $hr_similar_files_opl = WeBWorK::ContentGenerator::Instructor::Similar::getTopFiveSimilarFilesOPL($r->ce, $sourceFileName);
+		if ($ce->{problemLibrary}{showSimilarExtended}){
+			my $hr_similar_files_f = WeBWorK::ContentGenerator::Instructor::Similar::getSimilarFilesInDir($r->ce, $sourceFileName);
+			my $hr_similar_files_p = WeBWorK::ContentGenerator::Instructor::Similar::getSimilarFilesInParentDir($r->ce, $sourceFileName);
+			push (@simParams, 
+				$self->form_similarity_data($hr_similar_files_f, $sourceFileName, $cnt, "Similar in same folder:", 1),
+				CGI::br(),
+				$self->form_similarity_data($hr_similar_files_p, $sourceFileName, $cnt, "Similar with same parent folder:", 2),
+				CGI::br(),
+			);
+		}
+		push (@simParams, 
+			$self->form_similarity_data($hr_similar_files, $sourceFileName, $cnt, "Similar global files:"),
+			CGI::br(),
+		);
+		push (@simParams, $self->form_similarity_data($hr_similar_files_opl, $sourceFileName, $cnt, "Similar OPL files:",3));
+		$similaritywidget=CGI::div({id=>"$similarityid", class=>"similaritydiv"}, @simParams );
+	}
+	my $simPercent = '';
+	if ($sourceFileData->{similarity}){
+		$simPercent = '<span style="font-weight: bold"> ' . $sourceFileData->{similarity} . ' </span>';
+	}
+	
 	my $level =0;
 
 	my $rerand = $isstatic ? '' : '<span style="display: inline-block" onclick="randomize(\''.$sourceFileName.'\',\'render'.$cnt.'\')" title="Randomize"><i class="icon-random"></i></span>';
+	
 	my $MOtag = $isMO ?  $self->helpMacro("UsesMathObjects",'<img src="/webwork2_files/images/pibox.png" border="0" title="Uses Math Objects" alt="Uses Math Objects" />') : '';
 	$MOtag = '<span class="motag">'.$MOtag.'</span>';
 
@@ -1110,7 +1241,9 @@ sub make_data_row {
 		      -value=>$r->maketext("Add"),
 			-title=>"Add problem to target set",
 		      -onClick=>"return addme(\"$sourceFileName\", \'one\')")),
-			"\n",CGI::span({-class=>"lb-problem-path"},CGI::span({id=>"filepath$cnt"},$r->maketext("Show path ..."))),"\n",
+			"\n",
+			$simPercent,
+			CGI::span({-class=>"lb-problem-path"},CGI::span({id=>"filepath$cnt"},$r->maketext("Show path ..."))),"\n",
 			 '<script type="text/javascript">settoggle("filepath'.$cnt.'", "'.$r->maketext("Show path ...").'", "'.$r->maketext("Hide path:")." $sourceFileName.".'")</script>',
 			CGI::span({-class=>"lb-problem-icons"}, 
 				$inSet, $MOtag, $mlt, $rerand,
@@ -1125,6 +1258,7 @@ sub make_data_row {
 		#CGI::br(),
 		CGI::hidden(-name=>"filetrial$cnt", -default=>$sourceFileName,-override=>1),
                 $tagwidget,
+                $similaritywidget,
 		CGI::div($problem_output)
 	));
 	print $mltend;
@@ -1429,6 +1563,22 @@ sub pre_header_initialize {
 		}	
 		$use_previous_problems=0; 
 
+	} elsif ($r->param('view_similar_problems')){
+		my $main_problem_file = $r->param('main_problem_file');
+		my $mode = $r->param('sim_depth');
+		$mode = 0 unless (defined $mode);
+		if (not defined($main_problem_file)){
+			$self->addbadmessage("Need to supply the main problem file.");
+		} else {
+			$main_problem_file =~ s|^Library/||;
+			@pg_files=([$main_problem_file, "self"]);
+			my $similar_files = WeBWorK::ContentGenerator::Instructor::Similar::getsimilarfiles_ce($r->ce, $main_problem_file, $mode);
+			for my $sim ( @{$similar_files}){
+				push (@pg_files, [ $sim->[1], sprintf("%6.2f", $sim->[0]/100) .'%']);
+			}
+			@pg_files = map {{'filepath'=> WeBWorK::ContentGenerator::Instructor::Similar::make_real_local_path($_->[0]), 'morelt'=>0, 'similarity'=>$_->[1]}} @pg_files;
+		}
+		$use_previous_problems=0;
 		##### Edit the current local homework set
 
 	} elsif ($r->param('edit_local')) { ## Jump to set edit page
