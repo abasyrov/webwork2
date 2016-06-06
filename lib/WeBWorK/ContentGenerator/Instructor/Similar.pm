@@ -1215,7 +1215,7 @@ sub body {
 	$libraryRoot = $ce->{problemLibrary}->{root};
 	$libraryRoot =~ s|/+$||;
 	
-	$pendingRoot = $ce->{problemLibrary}->{pending};
+	$pendingRoot = $ce->{pendingLibrary}->{root};
 	$pendingRoot =~ s|/+$|| if (defined $pendingRoot);	
 	
 	my $user = $db->getUser($userName); # checked

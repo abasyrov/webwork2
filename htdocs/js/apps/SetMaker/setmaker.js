@@ -72,6 +72,23 @@ function togglepaths() {
   return false;
 }
 
+function toggledragging() {
+	var toggle_from = $('#toggle_dragging_current')[0].value;
+	var new_text = $('#disabledraggingtext')[0].value;
+	nomsg();
+	if (toggle_from == 'disable'){
+		new_text = $('#enabledraggingtext')[0].value;
+		$("#library-browser-table-id").children("tbody").sortable("disable");
+		$('#toggle_dragging_current').val('enable');
+	} else {
+		new_text = $('#disabledraggingtext')[0].value;
+		$("#library-browser-table-id").children("tbody").sortable("enable");
+		$('#toggle_dragging_current').val('disable');
+	}
+	$('#toggle_dragging').prop('value',new_text);
+	return false;
+}
+
 function init_webservice(command) {
   var myUser = $('#hidden_user').val();
   var myCourseID = $('#hidden_courseID').val();
@@ -318,8 +335,14 @@ function delrow(num) {
   var mymltMtext = 'L'; // so extra stuff is not deleted
   if(mymltM) {
     mymltMtext = mymltM.text();
+	if (mymltMtext.length > 1) {
+		mymltMtext = mymltMtext.charAt(0);
+	}
   }
   $('#pgrow'+num).remove(); 
+  if ( $('#pgrowwrap'+num).length > 0 ){
+	  $('#pgrowwrap'+num).remove();
+  }
   delFromPGList(num, path);
     if((mymlt > 0) && mymltMtext=='M') { // delete hidden problems
     var table_num = num;
@@ -444,14 +467,14 @@ function togglemlt(cnt,noshowclass) {
   var n1 = $('#lastshown').text();
   var n2 = $('#totalshown').text();
 
-  if($('#mlt'+cnt).text()=='M') {
+  if($('#mlt'+cnt).text()=='M+'+count) {
     $('.'+noshowclass).show();
-    $('#mlt'+cnt).text("L");
+    $('#mlt'+cnt).text("L-"+count);
     $('#mlt'+cnt).attr("title","Show less like this");
     count = -1*count;
   } else {
     $('.'+noshowclass).hide();
-    $('#mlt'+cnt).text("M");
+    $('#mlt'+cnt).text("M+"+count);
     $('#mlt'+cnt).attr("title","Show "+$('.'+noshowclass).length+" more like this");
   }
   $('#lastshown').text(n1-count);

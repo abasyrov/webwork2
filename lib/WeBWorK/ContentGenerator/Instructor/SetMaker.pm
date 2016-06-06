@@ -949,6 +949,18 @@ sub make_top_row {
 		$show_hide_path_button .= " ".CGI::hidden(-name=>"showtext", -id=>"showtext", -default=>$r->maketext("Show all paths"));
 	}
 
+	my $dragging_button = "";
+	if ($ce->{problemLibrary}{makeProblemsDraggable}){ 
+		$dragging_button = CGI::submit(
+								-id=>"toggle_dragging", 
+								-style=>"width:18ex",
+								-value=>$r->maketext("Disable dragging"),
+								-onClick=>'return toggledragging()');
+		$dragging_button .= " ".CGI::hidden(-name=>"toggle_dragging_current", -id=>"toggle_dragging_current", -default=>'disable');
+		$dragging_button .= " ".CGI::hidden(-name=>"disabledraggingtext", -id=>"disabledraggingtext", -default=>$r->maketext("Disable dragging"));
+		$dragging_button .= " ".CGI::hidden(-name=>"enabledraggingtext", -id=>"enabledraggingtext", -default=>$r->maketext("Enable dragging"));
+	}
+	
 	print CGI::Tr({},
 	        CGI::td({-class=>"InfoPanel", -align=>"center"},
 		      CGI::start_table({-border=>"0"}),
@@ -959,7 +971,7 @@ sub make_top_row {
 		           CGI::submit(-name=>"cleardisplay", 
 		                -style=>$these_widths,
 		                -value=>$r->maketext("Clear Problem Display")),
-			$prev_button, " ", $next_button, " ", $show_hide_path_button
+			$prev_button, " ", $next_button, " ", $show_hide_path_button, " ", $dragging_button, 
 		     )), 
 	#	CGI::Tr({}, 
 	#	 CGI::td({},
@@ -1132,17 +1144,36 @@ sub make_data_row {
 
 	# saved CGI::span({-style=>"float:left ; text-align: left"},"File name: $sourceFileName "), 
 
+	my $doingMLT=0; # indicator if we are in the middle of MLT group of problems
 	my $mlt = '';
 	my ($mltstart, $mltend) = ('','');
 	my $noshowclass = 'NS'.$cnt;
 	$noshowclass = 'MLT'.$sourceFileData->{morelt} if $sourceFileData->{morelt};
 	if($sourceFileData->{children}) {
+		$doingMLT = 1;
 		my $numchild = scalar(@{$sourceFileData->{children}});
-		$mlt = "<span id='mlt$cnt' onclick='togglemlt($cnt,\"$noshowclass\")' title='Show $numchild more like this' style='cursor:pointer'>M</span>";
+		my $tbl_width = 1+$numchild;
+		$tbl_width = 10 if ($tbl_width > 10); # don't make the border too thick for large MLT groups		
+		$mlt = "<span id='mlt$cnt' onclick='togglemlt($cnt,\"$noshowclass\")' title='Show $numchild more like this' style='cursor:pointer'>M+$numchild</span>";
 		$noshowclass = "NS$cnt";
-		$mltstart = "<tr><td><table id='mlt-table$cnt' class='lb-mlt-group'><tr><td>\n";
+		my $elasticBorderStyle='';
+		if ($ce->{problemLibrary}{elasticBorder}){
+			$elasticBorderStyle="style='border-collapse: separate; border: ". $tbl_width ."px outset blue; border-left-width: 1px; border-top-width: 1px'";
+		}
+		$mltstart = "<tr class='pgdraggable'><td><table class='lb-mlt-group' id='mlt-table$cnt' $elasticBorderStyle width='100%'>\n";
+		
 	}
-	$mltend = "</td></tr></table></td></tr>\n" if($mltnumleft==0);
+	$mltend = "</table></td></tr>\n" if($mltnumleft==0);
+	$doingMLT = 1 if ($mltnumleft>=0);
+	
+	if (!($doingMLT)){ 
+		#wrap individual problem in draggable table row
+		$mltstart = "<tr class='pgdraggable' id='pgrowwrap$cnt'><td><table width='100%'>\n";
+		$mltend = "</table></td></tr>\n";
+		#$mltstart = "<tr class='pgdraggable' id='pgrowwrap$cnt'><td>\n";
+		#$mltend = "</td></tr>\n";
+	}
+	
 	my $noshow = '';
 	$noshow = 'display: none' if($sourceFileData->{noshow});
 
@@ -1257,8 +1288,8 @@ sub make_data_row {
 			  ), 
 		#CGI::br(),
 		CGI::hidden(-name=>"filetrial$cnt", -default=>$sourceFileName,-override=>1),
-                $tagwidget,
-                $similaritywidget,
+		$tagwidget,
+		$similaritywidget,
 		CGI::div($problem_output)
 	));
 	print $mltend;
@@ -1342,6 +1373,35 @@ $dbsearch[$indx]->{oindex} = $indx;
 			$mltind++;
 		}
 	}
+
+	my @betterdbsearch = ();
+	my @bylength = keys (%mlt);
+	@bylength = reverse sort { 
+		( scalar(@{$mlt{$a}->{children}}) <=> scalar(@{$mlt{$b}->{children}}) ) ||
+		( $mlt{$a}->{index} <=> $mlt{$b}->{index} )
+		} @bylength;
+	
+	# warn Dumper(\%mlt);
+	
+	# warn 'By length: '. Dumper(\@bylength);
+	
+	for my $i (@bylength) {
+		#warn 'starting with '. $i;
+		#warn 'mlt contains: '. Dumper($mlt{$i});
+		#warn 'dbsearch entry: '. Dumper($dbsearch[$mlt{$i}->{index}]);
+		push (@betterdbsearch, $dbsearch[$mlt{$i}->{index}]);
+		#warn 'betterdbsearch state after leader: ' . Dumper(\@betterdbsearch);
+		push (@betterdbsearch, @{$mlt{$i}->{children}});
+		#warn 'betterdbsearch state after all children: ' . Dumper(\@betterdbsearch);
+	}
+	for my $ch (@dbsearch){
+		push (@betterdbsearch, $ch) unless ($ch->{morelt});
+	}
+	
+	#warn 'betterdbsearch: '. Dumper(\@betterdbsearch);
+	#warn 'dbsearch: '. Dumper(\@dbsearch);
+	
+	
 	# Last pass, reinsert children into dbsearch
 	my @leaders = keys(%mlt);
 	@leaders = reverse sort {$mlt{$a}->{index} <=> $mlt{$b}->{index}} @leaders;
@@ -1350,6 +1410,10 @@ $dbsearch[$indx]->{oindex} = $indx;
 		splice @dbsearch, $base+1, 0, @{$mlt{$i}->{children}};
 	}
 
+	#warn 'both: '. Dumper(\@dbsearch, \@betterdbsearch);
+	
+	#return @dbsearch;
+	return @betterdbsearch if ($r->ce->{problemLibrary}{sortMode} == 1);
 	return @dbsearch;
 }
 
@@ -1835,7 +1899,7 @@ sub body {
 		$self->hidden_authen_fields,
                 CGI::hidden({id=>'hidden_courseID',name=>'courseID',default=>$courseID }),
 			'<div align="center">',
-	CGI::start_table({class=>"library-browser-table"});
+	CGI::start_table({class=>"library-browser-table", id=>"library-browser-table-id"});
 	$self->make_top_row('all_db_sets'=>\@all_db_sets, 
 				 'browse_which'=> $browse_which);
 	print CGI::hidden(-name=>'browse_which', -value=>$browse_which,-override=>1),
@@ -1886,6 +1950,19 @@ sub body {
 	#	 }
 	print CGI::end_form(), "\n";
 
+	if ($ce->{problemLibrary}{makeProblemsDraggable}){ 
+		print q! <script> $("#library-browser-table-id").children("tbody").sortable({
+			containment: "parent",
+			items: ".pgdraggable",
+			cursor: "move",
+			axis: "y",
+ 			placeholder: "library-browser-state-highlight",
+			forcePlaceholderSize: true,
+			}); 
+			$("#enable_dragging").hide();
+			</script> !;
+	}
+
 	return "";	
 }
 
@@ -1928,6 +2005,12 @@ sub output_CSS {
 
   print qq{
            <link href="$webwork_htdocs_url/css/knowlstyle.css" rel="stylesheet" type="text/css" />};
+
+  print q!<style>
+	.library-browser-state-highlight { 
+		border: 2px solid Green ; 
+		}
+	</style>!;
 
   return '';
 
