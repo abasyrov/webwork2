@@ -114,8 +114,10 @@ sub body {
 		my $use_hdiff = 1;
 		if($use_hdiff) {
 			# If you have hdiff installed, you can get colorized diffs
-			my $diffout = `hdiff -l 500 -t " " -c "File 1" -C "File 2" -N $ce->{courseDirs}->{templates}/$pathlist[0] $ce->{courseDirs}->{templates}/$pathlist[1]`;
+			my $diffout = `hdiff -l 500 -h /dev/null -f /dev/null -t " " -c "File 1" -C "File 2" -N $ce->{courseDirs}->{templates}/$pathlist[0] $ce->{courseDirs}->{templates}/$pathlist[1]`;
+			print CGI::start_div({class=>"tex2jax_ignore"});
 			print $diffout;
+			print CGI::end_div();			
 		} else { 
 			# Here we call diff.  Basic version first
 			my $diffout = `diff -u $ce->{courseDirs}->{templates}/$pathlist[0] $ce->{courseDirs}->{templates}/$pathlist[1]`;

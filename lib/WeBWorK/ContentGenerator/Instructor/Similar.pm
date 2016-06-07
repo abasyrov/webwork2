@@ -1304,8 +1304,10 @@ sub body {
 			my $rp2 = make_real_local_path($sim->[1]);
 			my $n1 = "$ce->{courseDirs}->{templates}/". make_real_local_path($path);
 			my $n2 = "$ce->{courseDirs}->{templates}/". make_real_local_path($sim->[1]);
-			my $dout = `hdiff -l 500 -t " " -c "$rp1" -C "$rp2" -N "$n1" "$n2"`;
+			my $dout = `hdiff -l 500 -h /dev/null -f /dev/null -t " " -c "$rp1" -C "$rp2" "$n1" "$n2"`;
+			print CGI::start_div({class=>"tex2jax_ignore"});
 			print $dout;
+			print CGI::end_div();
 			print CGI::a({href=>"#topline"}, "Back to top");
 			print CGI::br();
 			$cnt++;
