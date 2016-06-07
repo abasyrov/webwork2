@@ -1021,7 +1021,28 @@ sub form_similarity_data{
 		my @similar_files_data;
 
 		for my $sim (@{$similar_files}){
-			push(@similar_files_data, '<span title="'.$sim->[1].'">'.(sprintf("%6.2f", $sim->[0]/100)) .'%</span>'); 
+			#push(@similar_files_data, '<span title="'.$sim->[1].'">'.(sprintf("%6.2f", $sim->[0]/100)) .'%</span>');
+			my $compare_link = CGI::a(
+				{
+				href => $self->systemLink(
+					$urlpath->newFromModule(
+						"WeBWorK::ContentGenerator::Instructor::Compare",
+						$r,
+						courseID=>$urlpath->arg("courseID"),
+					),
+				params => {
+					effectiveUser => scalar($self->r->param('user')),
+					path1 => $sourceFileName,
+					path2 => WeBWorK::ContentGenerator::Instructor::Similar::make_real_local_path($sim->[1]),
+					}
+				),
+				target=>"_blank",
+				title=>WeBWorK::ContentGenerator::Instructor::Similar::make_real_local_path($sim->[1]),
+				style=>"text-decoration: none"
+				},
+				sprintf("%6.2f", $sim->[0]/100)
+				);
+			push(@similar_files_data, $compare_link); 
 		}
 		my $similarity_link = 
 		CGI::a(
@@ -1043,7 +1064,7 @@ sub form_similarity_data{
 				sim_depth => $mode,
 				}
 			),
-			target=>"Similar_view", 
+			target=>"_blank", 
 				title=>"View Similar",
 				id=>"linksimilar$cnt",
 				style=>"text-decoration: none"
@@ -1061,7 +1082,7 @@ sub form_similarity_data{
 					path => $sourceFileName,
 					sim_depth => $mode,
 				}
-			), target=>"WW_Sim_View", 
+			), target=>"_blank", 
 				title=>"Files similar to $sourceFileName",
 				style=>"text-decoration: none"}, 'Show code diffs.');
 		return $similarity_link." ".join(", ",@similar_files_data).$similar_ending." ".$diffs_link;
