@@ -89,6 +89,7 @@ our @EXPORT_OK = qw(
 	runtime_use
 	sortAchievements
 	sortByName
+	sortByNameHash
 	surePathToFile
 	textDateTime
 	timeToSec
@@ -1064,6 +1065,51 @@ sub sortByName($@) {
 	return map{$itemsByIndex{$_}} @sKeys;
 }
 
+sub sortByNameHash($@) {
+	my ($field, @items) = @_;
+
+	my %itemsByIndex = ();
+	if ( ref( $field ) eq 'ARRAY' ) {
+		foreach my $item ( @items ) {
+			my $key = '';
+			foreach ( @$field ) {
+		    		$key .= $item->{$_};  # in this case we assume 
+			}                           #    all entries in @$field
+			$itemsByIndex{$key} = $item;  #  are defined.
+	    	}
+	} else {
+	    %itemsByIndex = map {(defined $field)?$_->{$field}:$_ => $_} @items;
+	}
+
+	my @sKeys = sort {
+		my @aParts = split m/(?<=\D)(?=\d)|(?<=\d)(?=\D)/, $a;
+		my @bParts = split m/(?<=\D)(?=\d)|(?<=\d)(?=\D)/, $b;
+
+		while (@aParts and @bParts) {
+			my $aPart = shift @aParts;
+			my $bPart = shift @bParts;
+			my $aNumeric = $aPart =~ m/^\d*$/;
+			my $bNumeric = $bPart =~ m/^\d*$/;
+
+			# numbers should come before words
+			return -1 if     $aNumeric and not $bNumeric;
+			return +1 if not $aNumeric and     $bNumeric;
+
+			# both have the same type
+			if ($aNumeric and $bNumeric) {
+				next if $aPart == $bPart; # check next pair
+				return $aPart <=> $bPart; # compare numerically
+			} else {
+				next if $aPart eq $bPart; # check next pair
+				return $aPart cmp $bPart; # compare lexicographically
+			}
+		}
+		return +1 if @aParts; # a has more sections, should go second
+		return -1 if @bParts; # a had fewer sections, should go first
+	} (keys %itemsByIndex);
+
+	return map{$itemsByIndex{$_}} @sKeys;
+}
 
 ################################################################################
 # Sort Achievements by number and then by id

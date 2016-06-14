@@ -32,7 +32,7 @@ use warnings;
 use WeBWorK::CGI;
 use WeBWorK::Debug;
 use WeBWorK::Form;
-use WeBWorK::Utils qw(readDirectory max sortByName wwRound x);
+use WeBWorK::Utils qw(readDirectory max sortByName sortByNameHash wwRound x);
 use WeBWorK::Utils::Tasks qw(renderProblems);
 use WeBWorK::Utils::Tags;
 use WeBWorK::Utils::LibraryStats;
@@ -71,6 +71,9 @@ use constant LIB2_DATA => {
 use constant ADDED => 1;
 use constant HIDDEN => (1 << 1);
 use constant SUCCESS => (1 << 2);
+
+# for DEBUG
+use Data::Dumper;
 
 ##	for additional problib buttons
 my %problib;	## This is configured in defaults.config
@@ -1335,6 +1338,18 @@ sub process_search {
 	my $mltind;
 	for my $indx (0..$#dbsearch) {
 		$dbsearch[$indx]->{filepath} = "Library/".$dbsearch[$indx]->{path}."/".$dbsearch[$indx]->{filename};
+	}
+	
+	#warn "size of dbsearch before sort: ". scalar(@dbsearch);
+	#warn "dbsearch before sort ". Dumper(\@dbsearch);
+	
+	#now is a good time to sort files by they path and name...
+	@dbsearch = sortByNameHash('filepath',@dbsearch);
+	
+	#warn "size of dbsearch after sort: ". scalar(@dbsearch);
+	#warn "dbsearch after sort ". Dumper(\@dbsearch);
+	
+	for my $indx (0..$#dbsearch){
 # For debugging
 $dbsearch[$indx]->{oindex} = $indx;
 		if($mltind = $dbsearch[$indx]->{morelt}) {
